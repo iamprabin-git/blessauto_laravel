@@ -1,11 +1,18 @@
-import React from 'react'
+import LatestProducts from "./common/LatestProducts";
+import FeatureProducts from "./common/FeatureProducts";
+import Layout from "./common/Layout";
+import Hero from "./common/Hero";
 
 const Home = () => {
   return (
     <>
-    <header className='btn btn-primary'>Home</header>
+      <Layout>
+        <Hero />
+        <LatestProducts />
+        <FeatureProducts />
+      </Layout>
     </>
-  )
-}
+  );
+};
 
-export default Home
+export default Home;
