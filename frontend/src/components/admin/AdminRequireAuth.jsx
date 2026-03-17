@@ -1,13 +1,11 @@
-import { useContext } from "react";
-import { AdminAuthContext } from "../context/AdminAuth";
-import { Navigate } from "react-router-dom";
+import React, { useContext } from 'react'
+import { AdminAuthContext } from '../context/AdminAuth'
+import { Navigate } from 'react-router-dom'
 
-export const AdminRequireAuth = ({ children }) => {
-    const { user } = useContext(AdminAuthContext);
-    
-    if (!user) {
-        return <Navigate to={"/admin/login"} />;
+export const AdminRequireAuth = ({children}) => {
+    const {user}= useContext(AdminAuthContext);
+    if(!user){
+        return <Navigate to={'/admin/login'}/>
     }
-    
-    return children;
-};
+  return children;
+}
