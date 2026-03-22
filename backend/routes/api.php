@@ -5,9 +5,15 @@ use App\Http\Controllers\admin\BrandController;
 use App\Http\Controllers\admin\CategoryController;
 use App\Http\Controllers\admin\ProductController;
 use App\Http\Controllers\admin\TempImageController;
+use App\Http\Controllers\front\ProductController as FrontProductController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/admin/login',[AuthController::class,'authenticate']);
+Route::get('get-latest-products',[FrontProductController::class,'latestProducts']);
+Route::get('get-featured-products',[FrontProductController::class,'featuredProducts']);
+Route::get('get-categories',[FrontProductController::class,'getCategories']);
+Route::get('get-brands',[FrontProductController::class,'getBrands']);
+Route::get('get-products',[FrontProductController::class,'getProducts']);
 
 // Route::get('/user', function (Request $request) {
 //     return $request->user();
@@ -18,5 +24,8 @@ Route::resource('categories',CategoryController::class);
 Route::resource('brands',BrandController::class);
 Route::resource('products',ProductController::class);
 Route::post('temp-images',[TempImageController::class,'store']);
+Route::post('save-product-images',[ProductController::class,'saveProductImages']);
+Route::post('update-default-image',[ProductController::class,'updateDefaultImage']);
+Route::delete('temp-images/{id}',[TempImageController::class,'destroy']);
 
 });

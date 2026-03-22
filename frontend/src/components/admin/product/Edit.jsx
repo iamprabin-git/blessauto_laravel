@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Layout from "../../common/Layout";
 import Sidebar from "../../common/Sidebar";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -6,268 +6,321 @@ import { useForm } from "react-hook-form";
 import { adminToken, apiUrl } from "../../common/http";
 import { toast } from "react-toastify";
 import JoditEditor from "jodit-react";
+import { FaTrash, FaCheckCircle, FaStar, FaUpload, FaArrowLeft } from "react-icons/fa";
+import { AiOutlineCloudUpload } from "react-icons/ai";
 
 const Edit = () => {
-    const { id } = useParams();
-    const navigate = useNavigate();
-    
-    const [categories, setCategories] = useState([]);
-    const [brands, setBrands] = useState([]);
-    const [images, setImages] = useState([]); 
-    const [tempImageIds, setTempImageIds] = useState([]); 
-    const [loading, setLoading] = useState(false);
-    const [content, setContent] = useState("");
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const editor = useRef(null);
 
-    const { register, handleSubmit, reset, formState: { errors } } = useForm();
+  // --- States ---
+  const [content, setContent] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [brands, setBrands] = useState([]);
+  const [defaultImage, setDefaultImage] = useState(""); 
+  const [productImages, setProductImages] = useState([]);
 
-    const fetchData = useCallback(async () => {
-        try {
-            const headers = { 
-                Authorization: `Bearer ${adminToken()}`,
-                Accept: "application/json" 
-            };
-            
-            const [resCat, resBrand, resProd] = await Promise.all([
-                fetch(`${apiUrl}/categories`, { headers }),
-                fetch(`${apiUrl}/brands`, { headers }),
-                fetch(`${apiUrl}/products/${id}`, { headers })
-            ]);
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm();
 
-            const resultCat = await resCat.json();
-            const resultBrand = await resBrand.json();
-            const resultProd = await resProd.json();
+  // --- Functions ---
 
-            if (resProd.ok) {
-                const p = resultProd.data;
-                setCategories(resultCat.data || []);
-                setBrands(resultBrand.data || []);
-                setImages(p.product_images || []);
-                
-                // Initialize form with existing data
-                reset({
-                    title: p.title || "",
-                    category_id: p.category_id || "",
-                    brand_id: p.brand_id || "",
-                    type: p.type || "car",
-                    model_year: p.model_year || "",
-                    kilometers_run: p.kilometers_run || "",
-                    fuel_type: p.fuel_type || "",
-                    transmission: p.transmission || "",
-                    condition: p.condition || "",
-                    engine_capacity: p.engine_capacity || "",
-                    price: p.price || "",
-                    discount_price: p.discount_price || "",
-                    status: p.status ?? 1,
-                    is_featured: p.is_featured || "no",
-                    registration_number: p.registration_number || "",
-                    ownership_number: p.ownership_number || "",
-                });
-                setContent(p.description || "");
-            }
-        } catch (error) {
-            console.error("Fetch Data Error:", error);
-            toast.error("Error loading vehicle data");
-        }
-    }, [id, reset]); 
-
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
-
-    const handleImageUpload = async (e) => {
-        const files = e.target.files;
-        if (!files || files.length === 0) return;
-
-        const formData = new FormData();
-        for (let i = 0; i < files.length; i++) {
-            formData.append("image", files[i]);
-        }
-
-        try {
-            const res = await fetch(`${apiUrl}/temp-images`, {
-                method: "POST",
-                headers: { Authorization: `Bearer ${adminToken()}` },
-                body: formData
-            });
-            const result = await res.json();
-            if (res.ok) {
-                setTempImageIds(prev => [...prev, result.data.id]);
-                toast.info("New image staged");
-            }
-        } catch (err) {
-            console.error("Upload Error:", err);
-            toast.error("Image upload failed");
-        }
+  // Memoized data fetching to satisfy ESLint and prevent re-render loops
+  const fetchInitialData = useCallback(async () => {
+    const headers = { 
+      Authorization: `Bearer ${adminToken()}`,
+      Accept: "application/json" 
     };
 
-    const deleteImage = async (imageId) => {
-        if (!window.confirm("Delete this image?")) return;
-        try {
-            const res = await fetch(`${apiUrl}/product-images/${imageId}`, {
-                method: "DELETE",
-                headers: { Authorization: `Bearer ${adminToken()}` }
-            });
-            if (res.ok) {
-                setImages(images.filter(img => img.id !== imageId));
-                toast.success("Image removed");
-            }
-        } catch (err) {
-            console.error("Delete Image Error:", err);
-            toast.error("Could not delete image");
+    try {
+      const [catRes, brandRes, prodRes] = await Promise.all([
+        fetch(`${apiUrl}/categories`, { headers }),
+        fetch(`${apiUrl}/brands`, { headers }),
+        fetch(`${apiUrl}/products/${id}`, { headers }),
+      ]);
+
+      const catData = await catRes.json();
+      const brandData = await brandRes.json();
+      const prodData = await prodRes.json();
+
+      if (catData.status === 200) setCategories(catData.data);
+      if (brandData.status === 200) setBrands(brandData.data);
+      
+      if (prodData.status === 200) {
+        reset(prodData.data);
+        setContent(prodData.data.description || "");
+        setDefaultImage(prodData.data.image || ""); 
+        if (prodData.data.product_images) {
+          setProductImages(prodData.data.product_images);
         }
+      }
+    } catch (err) {
+      toast.error("Critical error: Could not load product data");
+    }
+  }, [id, reset]);
+
+  useEffect(() => {
+    fetchInitialData();
+  }, [fetchInitialData]);
+
+  // Handle Temporary Image Upload (Linked to your Laravel 'save-product-images' route)
+  const handleFile = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("image", file);
+    setUploading(true);
+
+    try {
+      const res = await fetch(`${apiUrl}/save-product-images`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${adminToken()}` },
+        body: formData,
+      });
+      const result = await res.json();
+      
+      if (result.status === 200) {
+        setProductImages((prev) => [
+          ...prev,
+          { 
+            id: result.data.id, 
+            image_url: result.data.image_url,
+            image: result.data.image_name // The raw filename returned by Laravel
+          },
+        ]);
+        toast.success("New image staged for gallery");
+      } else {
+        toast.error(result.message || "Upload rejected by server");
+      }
+    } catch (err) {
+      toast.error("Network error during upload");
+    } finally {
+      setUploading(false);
+      e.target.value = null; 
+    }
+  };
+
+  // Local Gallery Deletion
+  const deleteImage = (index) => {
+    const updated = productImages.filter((err, i) => i !== index);
+    setProductImages(updated);
+    toast.info("Image removed from selection");
+  };
+
+  // Set the Thumbnail (Primary Image)
+  const changeImage = (img) => {
+    // Priority: use explicit 'image' property, fallback to parsing filename from URL
+    const fileName = img.image || img.image_url.split('/').pop();
+    setDefaultImage(fileName);
+    toast.success("Main thumbnail selected");
+  };
+
+  // Final Update Submit
+  const updateProduct = async (data) => {
+    setLoading(true);
+    const imageIds = productImages.map((img) => img.id);
+
+    const payload = {
+      ...data,
+      description: content,
+      gallery: imageIds,
+      status: data.status,
+      main_image: defaultImage, 
     };
 
-    const onSubmit = async (data) => {
-        setLoading(true);
-        const formData = new FormData();
-        
-        // FIX: Sanitize "null" strings or empty values for decimals/integers
-        const sanitizedData = {
-            ...data,
-            discount_price: (data.discount_price === "null" || !data.discount_price) ? "" : data.discount_price,
-            price: data.price || 0,
-            ownership_number: (data.ownership_number === "null" || !data.ownership_number) ? "" : data.ownership_number,
-        };
+    try {
+      const res = await fetch(`${apiUrl}/products/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${adminToken()}`,
+        },
+        body: JSON.stringify(payload),
+      });
 
-        // Append fields to FormData
-        Object.keys(sanitizedData).forEach(key => {
-            if (sanitizedData[key] !== null && sanitizedData[key] !== undefined) {
-                formData.append(key, sanitizedData[key]);
-            }
-        });
+      const result = await res.json();
+      if (result.status === 200) {
+        toast.success(result.message);
+        navigate("/admin/products");
+      } else {
+        toast.error(result.message || "Update process failed");
+      }
+    } catch (err) {
+      toast.error("Server connection lost");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        formData.append("description", content);
-        formData.append("_method", "PUT"); // Important for Laravel PUT requests via FormData
+  return (
+    <Layout>
+      <div className="container mt-5">
+        <form onSubmit={handleSubmit(updateProduct)}>
+          <div className="d-flex justify-content-between align-items-center pb-4">
+            <h4 className="fw-bold mb-0">Edit Vehicle Detail</h4>
+            <Link to="/admin/products" className="btn btn-outline-dark d-flex align-items-center">
+              <FaArrowLeft className="me-2" /> Back to Inventory
+            </Link>
+          </div>
 
-        // Append new images to gallery array
-        tempImageIds.forEach(tempId => {
-            formData.append("gallery[]", tempId);
-        });
-
-        try {
-            const res = await fetch(`${apiUrl}/products/${id}`, {
-                method: "POST", // Standard practice: POST with _method PUT for multipart
-                headers: { 
-                    Authorization: `Bearer ${adminToken()}`, 
-                    Accept: "application/json" 
-                },
-                body: formData
-            });
-
-            const result = await res.json();
-
-            if (res.ok) {
-                toast.success("Vehicle Updated Successfully");
-                navigate("/admin/products");
-            } else {
-                console.error("Update Validation/Server Error:", result);
-                toast.error(result.message || "Update Failed");
-            }
-        } catch (err) {
-            console.error("Network/Submit Error:", err);
-            toast.error("Network error occurred");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-   
-
-    return (
-        <Layout>
-            <div className="container mt-5">
-                <form onSubmit={handleSubmit(onSubmit)}>
-                    <div className="row">
-                        <div className="col-md-3"><Sidebar /></div>
-                        <div className="col-md-9 pb-5">
-                            <div className="card p-4 shadow-sm border-0">
-                                <div className="d-flex justify-content-between align-items-center mb-3">
-                                    <h5 className="mb-0 fw-bold">Edit Vehicle Details</h5>
-                                    <Link to="/admin/products" className="btn btn-sm btn-outline-secondary">Back</Link>
-                                </div>
-                                <hr />
-                                
-                                <div className="mb-4">
-                                    <label className="fw-bold mb-2">Vehicle Gallery</label>
-                                    <div className="d-flex flex-wrap gap-2 mb-3">
-                                        {images.map(img => (
-                                            <div key={img.id} className="position-relative">
-                                                <img 
-                                                    src={img.image_url} 
-                                                    alt="preview" 
-                                                    className="rounded border shadow-sm" 
-                                                    style={{ width: '100px', height: '80px', objectFit: 'cover' }} 
-                                                />
-                                                <button 
-                                                    type="button"
-                                                    onClick={() => deleteImage(img.id)}
-                                                    className="btn btn-danger btn-sm position-absolute top-0 end-0 py-0 px-1"
-                                                    style={{ fontSize: '10px', borderRadius: '50%' }}
-                                                >✕</button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <input type="file" multiple className="form-control" onChange={handleImageUpload} />
-                                    <small className="text-muted">Adding files here will add them to the existing gallery.</small>
-                                </div>
-                                
-                                <div className="row">
-                                    <div className="col-md-12 mb-3">
-                                        <label>Vehicle Title *</label>
-                                        <input {...register("title", { required: true })} className={`form-control ${errors.title ? 'is-invalid' : ''}`} />
-                                    </div>
-
-                                    <div className="col-md-6 mb-3">
-                                        <label>Category</label>
-                                        <select {...register("category_id")} className="form-select">
-                                            {categories.map(cat => (
-                                                <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    <div className="col-md-6 mb-3">
-                                        <label>Brand</label>
-                                        <select {...register("brand_id")} className="form-select">
-                                            {brands.map(brand => (
-                                                <option key={brand.id} value={brand.id}>{brand.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    <div className="col-md-4 mb-3">
-                                        <label>Price (Rs) *</label>
-                                        <input type="number" {...register("price", { required: true })} className="form-control" />
-                                    </div>
-
-                                    <div className="col-md-4 mb-3">
-                                        <label>Discount Price</label>
-                                        <input type="number" {...register("discount_price")} className="form-control" placeholder="Optional" />
-                                    </div>
-
-                                    <div className="col-md-4 mb-3">
-                                        <label>Status</label>
-                                        <select {...register("status")} className="form-select">
-                                            <option value="1">Active</option>
-                                            <option value="0">Inactive</option>
-                                        </select>
-                                    </div>
-
-                                    <div className="col-md-12 mb-3">
-                                        <label className="mb-2">Description</label>
-                                        <JoditEditor value={content} onBlur={c => setContent(c)} />
-                                    </div>
-                                </div>
-                                <button className="btn btn-primary w-100 py-2 mt-3 shadow-sm fw-bold" disabled={loading}>
-                                    {loading ? "Updating..." : "Update Vehicle"}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </form>
+          <div className="row">
+            <div className="col-md-3">
+              <Sidebar />
             </div>
-        </Layout>
-    );
+            
+            <div className="col-md-9 pb-5">
+              
+              {/* SECTION: IDENTITY */}
+              <div className="card shadow-sm border-0 p-4 mb-4 rounded-3">
+                <h5 className="border-bottom pb-3 mb-3 fw-bold">Vehicle Identity</h5>
+                <div className="row">
+                  <div className="col-md-12 mb-3">
+                    <label className="form-label fw-semibold">Title *</label>
+                    <input
+                      {...register("title", { required: "Title is required" })}
+                      className={`form-control ${errors.title ? "is-invalid" : ""}`}
+                      placeholder="e.g. 2024 Toyota Camry XLE"
+                    />
+                    {errors.title && <div className="invalid-feedback">{errors.title.message}</div>}
+                  </div>
+                  <div className="col-md-6 mb-3">
+                    <label className="form-label fw-semibold">Category *</label>
+                    <select {...register("category_id", { required: true })} className="form-select">
+                      <option value="">Select Category</option>
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="col-md-6 mb-3">
+                    <label className="form-label fw-semibold">Brand *</label>
+                    <select {...register("brand_id", { required: true })} className="form-select">
+                      <option value="">Select Brand</option>
+                      {brands.map((brand) => (
+                        <option key={brand.id} value={brand.id}>{brand.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION: GALLERY */}
+              <div className="card shadow-sm border-0 p-4 mb-4 rounded-3">
+                <h5 className="border-bottom pb-3 d-flex align-items-center mb-3 fw-bold">
+                  <AiOutlineCloudUpload className="me-2 text-primary" size={24} /> Visual Gallery
+                </h5>
+                <div className="mb-4">
+                  <label className="form-label fw-bold">Add New Photos</label>
+                  <div className="input-group border rounded-3 overflow-hidden">
+                    <input type="file" className="form-control border-0" onChange={handleFile} disabled={uploading} />
+                    <span className="input-group-text bg-primary text-white border-0"><FaUpload /></span>
+                  </div>
+                  {uploading && (
+                    <div className="text-primary mt-2 small d-flex align-items-center">
+                      <div className="spinner-border spinner-border-sm me-2" role="status"></div>
+                      Optimizing and uploading image...
+                    </div>
+                  )}
+                </div>
+
+                <div className="row g-3">
+                  {productImages.length > 0 ? productImages.map((productImage, index) => {
+                    const isMain = productImage.image_url.includes(defaultImage) || (productImage.image && productImage.image === defaultImage);
+                    return (
+                      <div className="col-md-4 col-xl-3" key={index}>
+                        <div className={`card h-100 border-2 transition-all ${isMain ? 'border-primary shadow' : 'border-light'}`}>
+                          <div className="position-relative">
+                            <img src={productImage.image_url} alt="product" className="card-img-top" style={{ height: '140px', objectFit: 'cover' }} />
+                            {isMain && (
+                              <div className="position-absolute top-0 start-0 m-2 bg-white rounded-circle p-1 shadow-sm d-flex border border-primary">
+                                <FaStar className="text-warning" size={18} />
+                              </div>
+                            )}
+                            <button 
+                              type="button" 
+                              className="btn btn-danger btn-sm position-absolute top-0 end-0 m-2 shadow-sm d-flex align-items-center justify-content-center" 
+                              onClick={() => deleteImage(index)}
+                              style={{ borderRadius: '50%', width: '30px', height: '30px' }}
+                            >
+                              <FaTrash size={12}/>
+                            </button>
+                          </div>
+                          <div className="card-body p-2 bg-white">
+                            <button 
+                              type="button" 
+                              className={`btn btn-sm w-100 fw-bold d-flex align-items-center justify-content-center ${isMain ? 'btn-success disabled' : 'btn-outline-primary'}`} 
+                              onClick={() => changeImage(productImage)}
+                            >
+                              {isMain ? <><FaCheckCircle className="me-1" /> Primary Photo</> : 'Make Primary'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  }) : (
+                    <div className="col-12 py-4 text-center text-muted border border-dashed rounded">
+                      No images in gallery. Upload at least one.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* SECTION: SPECS */}
+              <div className="card shadow-sm border-0 p-4 mb-4 rounded-3">
+                <h5 className="border-bottom pb-3 mb-3 fw-bold">Pricing & Status</h5>
+                <div className="row">
+                  <div className="col-md-6 mb-3">
+                    <label className="form-label fw-semibold">Asking Price (USD) *</label>
+                    <input type="number" {...register("price", { required: true })} className="form-control" placeholder="0.00" />
+                  </div>
+                  <div className="col-md-6 mb-3">
+                    <label className="form-label fw-semibold">Inventory Status</label>
+                    <select {...register("status")} className="form-select">
+                      <option value="1">Available</option>
+                      <option value="0">Sold / Hidden</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION: DESCRIPTION */}
+              <div className="card shadow-sm border-0 p-4 mb-4 rounded-3">
+                <h5 className="border-bottom pb-3 mb-3 fw-bold">Full Vehicle Description</h5>
+                <JoditEditor 
+                  ref={editor} 
+                  value={content} 
+                  config={{ readonly: false, height: 300 }}
+                  onBlur={(newContent) => setContent(newContent)} 
+                />
+              </div>
+
+              {/* ACTION: SUBMIT */}
+              <button 
+                type="submit" 
+                disabled={loading || uploading} 
+                className="btn btn-primary btn-lg w-100 mb-5 shadow rounded-pill py-3 fw-bold"
+              >
+                {loading ? (
+                  <><span className="spinner-border spinner-border-sm me-2"></span> Updating Database...</>
+                ) : (
+                  "Commit Changes to Inventory"
+                )}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </Layout>
+  );
 };
 
 export default Edit;
