@@ -77,8 +77,9 @@ const Header = () => {
           <Container>
             <Nav className="justify-content-center py-2 gap-4 fw-bold small text-uppercase">
               <Nav.Link as={Link} to="/" className={isActive('/') ? 'text-primary' : 'text-dark'}>HOME</Nav.Link>
-              <Nav.Link as={Link} to="/cars" className={isActive('/cars') ? 'text-primary' : 'text-dark'}>CARS</Nav.Link>
+              <Nav.Link as={Link} to="/shop" className={isActive('/shop') ? 'text-primary' : 'text-dark'}>SHOP</Nav.Link>
               <Nav.Link as={Link} to="/bikes" className={isActive('/bikes') ? 'text-primary' : 'text-dark'}>BIKES</Nav.Link>
+              <Nav.Link as={Link} to="/cars" className={isActive('/cars') ? 'text-primary' : 'text-dark'}>CARS</Nav.Link>
               <Nav.Link as={Link} to="/accessories" className={isActive('/accessories') ? 'text-primary' : 'text-dark'}>ACCESSORIES</Nav.Link>
               <Nav.Link as={Link} to="/contact" className="text-danger">CONTACT US</Nav.Link>
             </Nav>
@@ -93,7 +94,7 @@ const Header = () => {
         </Offcanvas.Header>
         <Offcanvas.Body className="p-0">
           <Nav className="flex-column">
-            {['/', '/cars', '/bikes', '/accessories', '/contact'].map((path) => (
+            {['/', '/shop', '/bikes', '/accessories', '/contact'].map((path) => (
               <Nav.Link 
                 key={path} 
                 as={Link} 

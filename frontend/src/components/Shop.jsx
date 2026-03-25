@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Layout from "./common/Layout";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { apiUrl } from "./common/http";
 import {
   FaGasPump,
@@ -96,12 +96,14 @@ const Shop = () => {
         <nav aria-label="breadcrumb" className="mb-4">
           <ol className="breadcrumb">
             <li className="breadcrumb-item">
-              <a href="/" className="text-decoration-none text-muted">
+              <Link to="/" className="text-decoration-none text-muted">
                 Home
-              </a>
+              </Link>
             </li>
             <li className="breadcrumb-item active fw-bold text-primary">
-              Shop
+              <Link to="/shop" className="text-decoration-none text-muted">
+                Shop
+              </Link> 
             </li>
           </ol>
         </nav>

@@ -3,6 +3,8 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import Home from './components/Home'
 import Shop from './components/Shop'
 import Product from './components/Product'
+import About from './components/About'
+import Contact from './components/Contact'
 import Login from './components/admin/Login'
 import Dashboard from './components/admin/Dashboard'
 import { ToastContainer } from 'react-toastify';
@@ -32,6 +34,9 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/shop" element={<Shop />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/contact" element={<Contact />} />
+
           <Route path="/product/:id" element={<Product />} />
 
           <Route path="/admin/login" element={<Login />} />
