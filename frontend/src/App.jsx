@@ -10,6 +10,7 @@ import Dashboard from './components/admin/Dashboard'
 import { ToastContainer } from 'react-toastify';
 import { AdminRequireAuth } from './components/admin/AdminRequireAuth'
 
+
 // 1. You MUST import the Provider
 import { AdminAuthProvider } from './components/context/AdminAuth'; 
 import {default as ShowCategories } from './components/admin/category/Show';
@@ -23,6 +24,7 @@ import {default as EditBrands } from './components/admin/brand/Edit';
 import {default as ShowProducts } from './components/admin/product/Show';
 import {default as CreateProducts } from './components/admin/product/Create';
 import {default as EditProducts } from './components/admin/product/Edit';
+import WhatsAppFloating from "./components/WhatAppFloating"
 
 
 
@@ -103,6 +105,7 @@ function App() {
          
         </Routes>
       </BrowserRouter>
+       <WhatsAppFloating />
       <ToastContainer />
     </AdminAuthProvider>
   );
